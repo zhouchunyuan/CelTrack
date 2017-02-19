@@ -1,0 +1,9 @@
+在 def detectContour(img,th1,th2):里面，遍历所有contour上的点，然后计算相邻三点构成的夹角。方法是计算矢量夹角。
+                a = complex(x-x1,y-y1)
+                b = complex(x2-x,y2-y)
+                c = (np.vdot(a,b)/(abs(a)*abs(b))).real
+                if c>1 :
+                    c = 1
+                if c<-1:
+                    c = -1
+                angle = np.arccos(c)
