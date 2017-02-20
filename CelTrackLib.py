@@ -4,6 +4,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from CelTrackControls import ThresholdControl
 import sys
+from subprocess import call
 import numpy as np
 import cv2
 
@@ -23,6 +24,13 @@ THRESH_HI = 255
 
 MOV_X = 0 # x steps to move
 MOV_Y = 0 # y steps to move
+INV_X = 1 # -1 to mirror MOV_X in DoMacro()
+INV_Y = -1 # -1 mirror MOV_Y in DoMacro(), -1 default to inverted microscope
+RUN_MACRO = False
+
+SHOW_THRESH_IMG = False
+
+IS_BRIGHTFIELD = True
 
 ########################################
 #
@@ -31,12 +39,16 @@ MOV_Y = 0 # y steps to move
 #
 ########################################
 def DoMacro():
-    global MOV_X,MOV_Y,SIG_STOP
+    global INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP
     while not SIG_STOP:
         nis = r'"c:\Program Files\NIS-Elements\nis_ar.exe"'
-        cmdstr = nis+' -c '+r'StgMoveXY('+str(MOV_X)+','+str(MOV_Y)+',1);'
-        #call(cmdstr,shell=True)
-        #print cmdstr
+        stepX = MOV_X*INV_X# set INV_X = -1 to mirror X
+        stepY = MOV_Y*INV_Y
+        cmdstr = nis+' -c '+r'StgMoveXY('+str(stepX)+','+str(stepY)+',1);'
+        if RUN_MACRO:
+            call(cmdstr,shell=True)
+            #print cmdstr
+            #print INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP
 
         
 ########################################
@@ -97,10 +109,6 @@ class TrkPanel(QtGui.QWidget):
     def __init__(self):
         super(TrkPanel, self).__init__()
 
-        self.qbtnStt = QtGui.QPushButton()
-        self.qbtnStp = QtGui.QPushButton()
-        self.qbtnExt = QtGui.QPushButton()
-
         #self.thresh_lo = QtGui.QLineEdit()
 
         self.initUI()
@@ -117,13 +125,66 @@ class TrkPanel(QtGui.QWidget):
         global WIN_ZOOM
         WIN_ZOOM = float(z)/100
 
+    def chkBoxState(self):
+        global RUN_MACRO,INV_X,INV_Y
+        RUN_MACRO = self.chkRunMacro.isChecked()
+        INV_X = -1 if self.chkInvX.isChecked() else 1
+        INV_Y = -1 if self.chkInvY.isChecked() else 1
+
+    def toogleRadioButton(self):
+        global IS_BRIGHTFIELD
+        IS_BRIGHTFIELD = self.rdoBF.isChecked()
+            
+
+    def toggleThreshImg(self):
+        global SHOW_THRESH_IMG
+        SHOW_THRESH_IMG = not SHOW_THRESH_IMG
+
+                           
        
     def initUI(self):
+
+        # parameter checkboxes
+        groupBox    = QGroupBox("Parameters")
+        vBoxLayout  = QVBoxLayout()
+
+        self.chkRunMacro = QCheckBox("Connect NIS-Elements")
+        self.chkRunMacro.setChecked(RUN_MACRO)
+        self.chkRunMacro.stateChanged.connect(self.chkBoxState)
+        vBoxLayout.addWidget(self.chkRunMacro)
+
+        xylayout = QtGui.QHBoxLayout()
         
+        self.chkInvX = QCheckBox("-X")
+        self.chkInvX.setChecked(False if INV_X == 1 else True)
+        self.chkInvX.stateChanged.connect(self.chkBoxState)
+        xylayout.addWidget(self.chkInvX)
+        
+        self.chkInvY = QCheckBox("-Y")
+        self.chkInvY.setChecked(False if INV_Y == 1 else True)
+        self.chkInvY.stateChanged.connect(self.chkBoxState)
+        xylayout.addWidget(self.chkInvY)
+
+        self.rdoBF = QRadioButton("BF")
+        self.rdoBF.setChecked(IS_BRIGHTFIELD)
+        self.rdoBF.toggled.connect(self.toogleRadioButton)
+        xylayout.addWidget(self.rdoBF)
+
+        self.rdoFL = QRadioButton("FL")
+        self.rdoFL.setChecked(not IS_BRIGHTFIELD)
+        self.rdoFL.toggled.connect(self.toogleRadioButton)
+        xylayout.addWidget(self.rdoFL)
+        
+        vBoxLayout.addLayout(xylayout)
+        groupBox.setLayout(vBoxLayout) 
+
+        # customized threshold
         self.threshold = ThresholdControl(THRESH_LO,THRESH_HI)
         self.threshold.valueLoChanged.connect(self.setLoValue)
         self.threshold.valueHiChanged.connect(self.setHiValue)
+        self.threshold.rightButtonClick.connect(self.toggleThreshImg)
 
+        # zoom slider
         self.zoomSld  = QtGui.QSlider(QtCore.Qt.Horizontal, self)
         self.zoomSld .setFocusPolicy(QtCore.Qt.NoFocus)
         self.zoomSld .setRange(10, 200)#10%-200%
@@ -140,6 +201,7 @@ class TrkPanel(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         grid.setSpacing(10)
 
+        grid.addWidget(groupBox)
         #add customized threshold control
         grid.addWidget(self.threshold)
         #add zoom control for live window
@@ -204,9 +266,11 @@ def DoCapture():
             #img_np = cv2.filter2D(img_np, -1, kernel)
             
             imgray = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-            
-            ret,thresh = cv2.threshold(imgray,THRESH_LO,THRESH_HI,cv2.THRESH_TOZERO_INV)
-
+            if IS_BRIGHTFIELD:# use different mode for BF and FL
+                ret,thresh = cv2.threshold(imgray,THRESH_LO,THRESH_HI,cv2.THRESH_TOZERO_INV)
+            else:
+                ret,thresh = cv2.threshold(imgray,THRESH_LO,THRESH_HI,cv2.THRESH_TOZERO)
+                
             ##use a 3x3 kernel to get rid of small objects
             ## iteration number is important
             #kernel = np.array([[1,1,1],[1,1,1],[1,1,1]])
@@ -247,12 +311,18 @@ def DoCapture():
                     cv2.circle(img_np, (TRK_POINT.x(),TRK_POINT.y()), 10, (0,0,255), -1)
                     hull = cv2.convexHull(TRKed_CONTOUR)
                     cv2.drawContours(img_np, [hull], 0, (255,0,0), 3)
+
+                    MOV_X = TRK_POINT.x()-CAP_RECT.width()*0.5
+                    MOV_Y = TRK_POINT.y()-CAP_RECT.height()*0.5
             if len(contours) == 0:
                     TRKed_CONTOUR = None
                     SIG_IS_TRACKED = False       
             img = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
 
-
+            if SHOW_THRESH_IMG:
+                imshowScale('threshold',thresh,WIN_ZOOM)
+            else:
+                cv2.destroyWindow('threshold') 
             #cv2.imshow('img',img)
             imshowScale('img',img,WIN_ZOOM)
             

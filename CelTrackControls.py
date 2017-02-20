@@ -7,6 +7,7 @@ class ThresholdControl(QtGui.QWidget):
     #define signals
     valueHiChanged = QtCore.pyqtSignal(int)
     valueLoChanged = QtCore.pyqtSignal(int)
+    rightButtonClick = QtCore.pyqtSignal()
 
     def __init__(self, vL = 0, vH = 255):      
         super(ThresholdControl, self).__init__()
@@ -91,6 +92,8 @@ class ThresholdControl(QtGui.QWidget):
             self.dragLo = False
             self.dragHi = False
             
+        if e.button()==QtCore.Qt.RightButton:
+            self.rightButtonClick.emit()# use right click to trigger thresh image
 
         
     def mouseReleaseEvent(self, e):
