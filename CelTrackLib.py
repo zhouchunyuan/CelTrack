@@ -191,10 +191,10 @@ class TrkPanel(QtGui.QWidget):
         self.zoomSld .setValue(100)
         self.zoomSld .valueChanged[int].connect(self.setZoom)
         
-        self.qbtnStt = QtGui.QPushButton('Define Area', self)
-        self.qbtnStt.clicked.connect(self.capScreen)
-        self.qbtnStp = QtGui.QPushButton('freeze/start', self)
-        self.qbtnStp.clicked.connect(self.record)
+        self.qbtnDef = QtGui.QPushButton('Define Area', self)
+        self.qbtnDef.clicked.connect(self.defScreen)
+        self.qbtnRec = QtGui.QPushButton('freeze' , self)
+        self.qbtnRec.clicked.connect(self.record)
         self.qbtnExt = QtGui.QPushButton('Exit', self)
         self.qbtnExt.clicked.connect(self.stopAndExit)
 
@@ -206,8 +206,8 @@ class TrkPanel(QtGui.QWidget):
         grid.addWidget(self.threshold)
         #add zoom control for live window
         grid.addWidget(self.zoomSld)
-        grid.addWidget(self.qbtnStt)
-        grid.addWidget(self.qbtnStp)
+        grid.addWidget(self.qbtnDef)
+        grid.addWidget(self.qbtnRec)
         grid.addWidget(self.qbtnExt)
         #grid.addWidget(qbtn,2,1)
         self.setLayout(grid)
@@ -217,12 +217,13 @@ class TrkPanel(QtGui.QWidget):
         self.show()
 
 
-    def capScreen(self):
+    def defScreen(self):
         self.recorder = Capframe()
         
     def record(self):
         global SIG_ACT
         SIG_ACT = not SIG_ACT
+        self.qbtnRec.setText('freeze' if SIG_ACT else 'record')
 
     def stopAndExit(self):
         global SIG_STOP
