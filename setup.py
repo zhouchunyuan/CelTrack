@@ -14,4 +14,11 @@ setup(  name = "CelTracker",
         version = "0.1",
         description = "CelTracker",
         options = {"build_exe": build_exe_options},
-        executables = [Executable("CelTracker.py", base=base)])
+        executables = [
+            Executable(
+                "CelTracker.py",
+                shortcutName="CelTracker",
+                shortcutDir="DesktopFolder",
+                base=base)
+            ]
+        )
