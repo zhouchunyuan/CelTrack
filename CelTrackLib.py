@@ -3,7 +3,7 @@ from PyQt4 import QtGui,QtCore
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from CelTrackControls import ThresholdControl
-import sys
+import sys,time
 from subprocess import call
 import numpy as np
 import cv2
@@ -27,6 +27,7 @@ MOV_Y = 0 # y steps to move
 INV_X = 1 # -1 to mirror MOV_X in DoMacro()
 INV_Y = -1 # -1 mirror MOV_Y in DoMacro(), -1 default to inverted microscope
 RUN_MACRO = False
+RUN_MACRO_INTERVAL = 0 # second between recording frames
 
 SHOW_THRESH_IMG = False
 
@@ -39,7 +40,7 @@ IS_BRIGHTFIELD = True
 #
 ########################################
 def DoMacro():
-    global INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP
+    global INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP,RUN_MACRO_INTERVAL
     while not SIG_STOP:
         nis = r'"c:\Program Files\NIS-Elements\nis_ar.exe"'
         stepX = MOV_X*INV_X# set INV_X = -1 to mirror X
@@ -48,8 +49,8 @@ def DoMacro():
         if RUN_MACRO:
             call(cmdstr,shell=True)
             #print cmdstr
-            #print INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP
-
+            
+        time.sleep(RUN_MACRO_INTERVAL)
         
 ########################################
 #
@@ -125,6 +126,10 @@ class TrkPanel(QtGui.QWidget):
         global WIN_ZOOM
         WIN_ZOOM = float(z)/100
 
+    def setInterval(self,i):
+        global RUN_MACRO_INTERVAL
+        RUN_MACRO_INTERVAL = i
+
     def chkBoxState(self):
         global RUN_MACRO,INV_X,INV_Y
         RUN_MACRO = self.chkRunMacro.isChecked()
@@ -148,34 +153,44 @@ class TrkPanel(QtGui.QWidget):
         groupBox    = QGroupBox("Parameters")
         vBoxLayout  = QVBoxLayout()
 
+        hlayout0 = QtGui.QHBoxLayout()
+        
         self.chkRunMacro = QCheckBox("Connect NIS-Elements")
         self.chkRunMacro.setChecked(RUN_MACRO)
         self.chkRunMacro.stateChanged.connect(self.chkBoxState)
-        vBoxLayout.addWidget(self.chkRunMacro)
+        hlayout0.addWidget(self.chkRunMacro)        
+        
+        self.spinInterval = QSpinBox()
+        self.spinInterval.setMinimum(0)
+        self.spinInterval.valueChanged[int].connect(self.setInterval)
+        hlayout0.addWidget(self.spinInterval)
 
-        xylayout = QtGui.QHBoxLayout()
+        hlayout0.addWidget(QLabel('sec'))
+
+        hlayout1 = QtGui.QHBoxLayout()
         
         self.chkInvX = QCheckBox("-X")
         self.chkInvX.setChecked(False if INV_X == 1 else True)
         self.chkInvX.stateChanged.connect(self.chkBoxState)
-        xylayout.addWidget(self.chkInvX)
+        hlayout1.addWidget(self.chkInvX)
         
         self.chkInvY = QCheckBox("-Y")
         self.chkInvY.setChecked(False if INV_Y == 1 else True)
         self.chkInvY.stateChanged.connect(self.chkBoxState)
-        xylayout.addWidget(self.chkInvY)
+        hlayout1.addWidget(self.chkInvY)
 
         self.rdoBF = QRadioButton("BF")
         self.rdoBF.setChecked(IS_BRIGHTFIELD)
         self.rdoBF.toggled.connect(self.toogleRadioButton)
-        xylayout.addWidget(self.rdoBF)
+        hlayout1.addWidget(self.rdoBF)
 
         self.rdoFL = QRadioButton("FL")
         self.rdoFL.setChecked(not IS_BRIGHTFIELD)
         self.rdoFL.toggled.connect(self.toogleRadioButton)
-        xylayout.addWidget(self.rdoFL)
+        hlayout1.addWidget(self.rdoFL)
         
-        vBoxLayout.addLayout(xylayout)
+        vBoxLayout.addLayout(hlayout0)
+        vBoxLayout.addLayout(hlayout1)
         groupBox.setLayout(vBoxLayout) 
 
         # customized threshold
@@ -397,6 +412,7 @@ def click_on_img(event, x, y, flags, param):
     # check to see if the left mouse button was released
     elif event == cv2.EVENT_LBUTTONUP:
         WIN_MOUSE_POINT = None
+
     
  
 
