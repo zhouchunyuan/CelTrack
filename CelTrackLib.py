@@ -10,6 +10,7 @@ import cv2
 
 # capture area, updated by Capframe::paintEvent
 CAP_RECT = QRect()
+CAP_PIXEL_SIZE = 1.0 # um
 TRK_POINT = QPoint()
 TRKed_CONTOUR = None #the tracked contour
 SIG_STOP = False
@@ -40,11 +41,11 @@ IS_BRIGHTFIELD = True
 #
 ########################################
 def DoMacro():
-    global INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP,RUN_MACRO_INTERVAL
+    global INV_X,INV_Y,MOV_X,MOV_Y,SIG_STOP,RUN_MACRO_INTERVAL,CAP_PIXEL_SIZE
     while not SIG_STOP:
         nis = r'"c:\Program Files\NIS-Elements\nis_ar.exe"'
-        stepX = MOV_X*INV_X# set INV_X = -1 to mirror X
-        stepY = MOV_Y*INV_Y
+        stepX = MOV_X*INV_X*CAP_PIXEL_SIZE# set INV_X = -1 to mirror X
+        stepY = MOV_Y*INV_Y*CAP_PIXEL_SIZE
         cmdstr = nis+' -c '+r'StgMoveXY('+str(stepX)+','+str(stepY)+',1);'
         if RUN_MACRO:
             call(cmdstr,shell=True)
@@ -58,7 +59,7 @@ def DoMacro():
 # using mouse drag and draw
 # left click to define topleft and bottomright
 # right click to exit GUI
-# output : sef.frm as rectangle
+# output : sef.frm as rectangle in paintEvent(self, e)
 #
 ########################################
 class Capframe(QWidget):
@@ -73,13 +74,18 @@ class Capframe(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowOpacity(0.5)
         self.showMaximized()
-        
+
     def mousePressEvent(self,event):
-        global SIG_ACT
+        global SIG_ACT, CAP_PIXEL_SIZE
         if event.button()==Qt.LeftButton: 
             self.frm.setTopLeft( QPoint(event.x(), event.y()))
             event.accept()
         if event.button()==Qt.RightButton:
+            
+            num,ok = QInputDialog.getDouble(self,"Calibration","um per pixel:")
+            if ok and num > 0:
+                CAP_PIXEL_SIZE = num
+            
             SIG_ACT = True # start recording
             self.close() 
     
@@ -126,9 +132,9 @@ class TrkPanel(QtGui.QWidget):
         global WIN_ZOOM
         WIN_ZOOM = float(z)/100
 
-    def setInterval(self,i):
+    def setInterval(self,v):
         global RUN_MACRO_INTERVAL
-        RUN_MACRO_INTERVAL = i
+        RUN_MACRO_INTERVAL = v
 
     def chkBoxState(self):
         global RUN_MACRO,INV_X,INV_Y
@@ -160,9 +166,10 @@ class TrkPanel(QtGui.QWidget):
         self.chkRunMacro.stateChanged.connect(self.chkBoxState)
         hlayout0.addWidget(self.chkRunMacro)        
         
-        self.spinInterval = QSpinBox()
-        self.spinInterval.setMinimum(0)
-        self.spinInterval.valueChanged[int].connect(self.setInterval)
+        self.spinInterval = QDoubleSpinBox()
+        self.spinInterval.setMinimum(0.0)
+        self.spinInterval.setSingleStep(0.5)
+        self.spinInterval.valueChanged[float].connect(self.setInterval)
         hlayout0.addWidget(self.spinInterval)
 
         hlayout0.addWidget(QLabel('sec'))
